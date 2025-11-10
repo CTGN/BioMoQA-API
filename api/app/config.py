@@ -2,12 +2,12 @@ import os
 from pydantic import BaseModel
 
 class Settings(BaseModel):
-    APP_NAME: str = "DisTriage API"
+    APP_NAME: str = "BioMoQA-Triage API"
     API_PREFIX: str = os.getenv("API_PREFIX", "/api/v1")
     ENV: str = os.getenv("ENV", "development")
 
-    MONGO_URI: str = os.getenv("MONGO_URI", "mongodb://mongo:27017/distriage")
-    MONGO_DB: str = os.getenv("MONGO_DB", "distriage")
+    MONGO_URI: str = os.getenv("MONGO_URI", "mongodb://mongo:27017/biomoqa-triage")
+    MONGO_DB: str = os.getenv("MONGO_DB", "biomoqa-triage")
 
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
     CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", REDIS_URL)

@@ -1,16 +1,17 @@
-# DisTriage API
+# BioMoQA-Triage API
 
-A FastAPI + Celery + MongoDB + Redis pipeline for **DisTriage (DisProt literature triage)** using a fine-tuned PubMedBERT model.  
+A FastAPI + Celery + MongoDB + Redis pipeline for **BioMoQA-Triage** using an ensemble of fine-tuned RoBERTa models.  
 
 ---
 
 ## Features
 
-- **Job-based submission** – Create jobs with a set of PMIDs  
+- **Job-based submission** – Create jobs with a set of PMIDs
 - **Two-Stage Pipeline**:
-  1. **Ingress**: Fetch MEDLINE abstracts and, if available, PMC fulltext
-  2. **Inference**: Run PubMedBERT on retrieved text
-- **Batch processing** – Configurable batch sizes for ingress & inference
+  1. **Ingress**: Fetch MEDLINE abstracts and, if available, PMC fulltext via SIBILS API
+  2. **Inference**: Run ensemble of 5 fine-tuned RoBERTa models on retrieved text
+- **Ensemble Prediction** – Average predictions across 5 cross-validation fold models for robust scoring
+- **Batch processing** – Configurable batch sizes and wait times for ingress & inference
 - **Job Status Tracking** – Poll `/api/v1/job/{job_id}` for progress
 - **Results Retrieval** – Get scores, source (abstract/fulltext), and texts
 - **MongoDB Backend** – Stores jobs & documents, enforces `(job_id, pmid)` uniqueness
@@ -48,14 +49,23 @@ Environment variables (via `.env` or `docker-compose`):
 
 | Variable              | Default                                          | Description                   |
 |-----------------------|--------------------------------------------------|-------------------------------|
-| `MONGO_URI`           | `mongodb://mongo:27017/distriage`                | MongoDB connection            |
-| `MONGO_DB`            | `distriage`                                      | Database name                 |
+| `MONGO_URI`           | `mongodb://mongo:27017/biomoqa-triage`           | MongoDB connection            |
+| `MONGO_DB`            | `biomoqa-triage`                                 | Database name                 |
 | `REDIS_URL`           | `redis://redis:6379/0`                           | Redis broker                  |
-| `HF_MODEL_NAME`       | `/models/biomedbert_ft/checkpoint-112`           | Model to load                 |
+| `HF_MODEL_BASE_DIR`   | `/models/checkpoints`                            | Base directory for models     |
+| `HF_MODEL_PREFIX`     | `best_model_cross_val_BCE_roberta-base`          | Model filename prefix         |
+| `HF_NUM_FOLDS`        | `5`                                              | Number of cross-validation folds |
 | `HF_DEVICE`           | `-1`                                             | Device (`-1` = CPU, `0` = GPU)|
-| `INGRESS_BATCH_SIZE`  | `64`                                             | PMIDs per ingress batch       |
-| `INFER_BATCH_SIZE`    | `32`                                             | Docs per inference batch      |
+| `MAX_TOKENS`          | `512`                                            | Maximum tokens for tokenizer  |
 | `MAX_TEXT_CHARS`      | `5000`                                           | Maximum characters per doc    |
+| `INGRESS_BATCH_SIZE`  | `64`                                             | PMIDs per ingress batch       |
+| `INGRESS_MAX_WAIT_MS` | `5000`                                           | Max wait time for ingress batch (ms) |
+| `INFER_BATCH_SIZE`    | `32`                                             | Docs per inference batch      |
+| `INFER_MAX_WAIT_MS`   | `5000`                                           | Max wait time for inference batch (ms) |
+| `SIBILS_URL`          | `https://biodiversitypmc.sibils.org/api`         | SIBILS API endpoint           |
+| `SIBILS_BATCH`        | `100`                                            | Batch size for SIBILS requests |
+| `SIBILS_TIMEOUT`      | `30`                                             | Timeout for SIBILS API (seconds) |
+| `CORS_ORIGINS`        | `*`                                              | Allowed CORS origins          |
 
 ---
 
@@ -66,10 +76,10 @@ docker compose up --build
 ```
 
 Services:
-- **API** → [http://localhost:8000](http://localhost:8000)
+- **API** → [http://localhost:8501](http://localhost:8501)
 - **MongoDB** → `localhost:27017`
 - **Redis** → `localhost:6379`
-- **Worker** → Celery worker
+- **Worker** → Celery worker (GPU-enabled for ensemble inference)
 - **Flower** → [http://localhost:5556](http://localhost:5556)
 
 ---
@@ -156,16 +166,24 @@ Returns the full job results as a downloadable JSON file (ranked by submission o
 
 ## Model
 
-Default in docker-compose points to the fine-tuned checkpoint:
+The system uses an **ensemble of 5 cross-validation fold models** for robust predictions:
 
 ```bash
-HF_MODEL_NAME=/models/biomedbert_ft/checkpoint-112
+HF_MODEL_BASE_DIR=/models/checkpoints
+HF_MODEL_PREFIX=best_model_cross_val_BCE_roberta-base
+HF_NUM_FOLDS=5
 ```
 
-The worker/API mounts the model from:
+Models are loaded from:
 ```
-../experiment/model/biomedbert_ft/checkpoint-112
+../experiment/model/checkpoints/best_model_cross_val_BCE_roberta-base_fold-1
+../experiment/model/checkpoints/best_model_cross_val_BCE_roberta-base_fold-2
+../experiment/model/checkpoints/best_model_cross_val_BCE_roberta-base_fold-3
+../experiment/model/checkpoints/best_model_cross_val_BCE_roberta-base_fold-4
+../experiment/model/checkpoints/best_model_cross_val_BCE_roberta-base_fold-5
 ```
+
+Each inference request runs through all 5 models and returns the averaged prediction score.
 
 ---
 

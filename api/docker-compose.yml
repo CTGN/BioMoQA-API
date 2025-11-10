@@ -38,9 +38,9 @@ services:
     environment:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      MONGO_URI: mongodb://mongo:27017/distriage
-      MONGO_DB: distriage
-      APP_NAME: DisTriage API
+      MONGO_URI: mongodb://mongo:27017/biomoqa-triage
+      MONGO_DB: biomoqa-triage
+      APP_NAME: BioMoQA-Triage API
       HF_MODEL_BASE_DIR: /models/checkpoints
       HF_MODEL_PREFIX: best_model_cross_val_BCE_roberta-base
       HF_NUM_FOLDS: "5"
@@ -87,11 +87,11 @@ services:
     container_name: api-api-1
     restart: unless-stopped
     environment:
-      APP_NAME: DisTriage API
+      APP_NAME: BioMoQA-Triage API
       API_PREFIX: /api/v1
       CORS_ORIGINS: http://localhost:3000,http://localhost:8501
-      MONGO_URI: mongodb://mongo:27017/distriage
-      MONGO_DB: distriage
+      MONGO_URI: mongodb://mongo:27017/biomoqa-triage
+      MONGO_DB: biomoqa-triage
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
@@ -108,9 +108,9 @@ services:
       mongo:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "8501:8501"
     command: >
-      sh -c "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+      sh -c "uvicorn app.main:app --host 0.0.0.0 --port 8501"
 
 volumes:
   mongo_data:

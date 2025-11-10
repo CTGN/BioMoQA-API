@@ -1,1 +1,1 @@
-# DisTriage API package
+# BioMoQA-Triage API package

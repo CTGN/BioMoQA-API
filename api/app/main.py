@@ -10,7 +10,7 @@ log = logging.getLogger("uvicorn")
 
 app = FastAPI(
     title=f"{settings.APP_NAME}",
-    description="Create DisProt literature triage jobs and fetch ranked article scores.",
+    description="Create biomedical literature triage jobs and fetch ranked article scores.",
     version="0.1.0",
 )
 

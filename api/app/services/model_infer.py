@@ -26,26 +26,6 @@ def get_pipes():
         _CACHE["pipes"] = pipes
     return _CACHE["pipes"]
 
-def _pick_pos_score(all_scores: list[dict]) -> float:
-    """
-    Given Hugging Face return_all_scores output (list of {label, score}),
-    return the POSITIVE-class probability.
-    Tries common label names, then falls back to a best guess.
-    """
-    for key in ("POS", "Positive", "positive", "LABEL_1", "1"):
-        for s in all_scores:
-            if s.get("label") == key:
-                return float(s.get("score", 0.0))
-
-    candidates = [s for s in all_scores if "1" in str(s.get("label", ""))]
-    if candidates:
-        return float(candidates[0].get("score", 0.0))
-
-    if len(all_scores) >= 2:
-        return float(all_scores[1].get("score", 0.0))
-
-    return float(all_scores[0].get("score", 0.0)) if all_scores else 0.0
-
 def predict_batch(titles: list[str], abstracts: list[str]) -> list[dict]:
     """
     Ensemble inference across all cross-validation folds.
@@ -59,12 +39,11 @@ def predict_batch(titles: list[str], abstracts: list[str]) -> list[dict]:
     texts = [f"{title}. {abstract}".strip() for title, abstract in zip(titles, abstracts)]
 
     # Collect predictions from all folds
+    # For single-label models (num_labels=1), pipeline returns sigmoid of logit as the score
     all_fold_predictions = []
     for pipe in pipes:
         outputs = pipe(
             texts,
-            return_all_scores=True,
-            function_to_apply="softmax",
             truncation=True,
             max_length=settings.MAX_TOKENS,
             padding=True,
@@ -76,7 +55,9 @@ def predict_batch(titles: list[str], abstracts: list[str]) -> list[dict]:
     for text_idx in range(len(texts)):
         fold_scores = []
         for fold_outputs in all_fold_predictions:
-            pos_score = _pick_pos_score(fold_outputs[text_idx])
+            # For single-label models, score field contains the positive probability
+            output = fold_outputs[text_idx]
+            pos_score = float(output.get("score", 0.0))
             fold_scores.append(pos_score)
 
         # Average across folds
@@ -84,7 +65,7 @@ def predict_batch(titles: list[str], abstracts: list[str]) -> list[dict]:
 
         results.append({
             "score": ensemble_score,
-            "all": all_fold_predictions[0][text_idx]
+            "all": [{"label": "LABEL_0", "score": ensemble_score}]
         })
 
     return results
